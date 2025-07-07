@@ -10,16 +10,26 @@ enum StatType {
 
 @MainActor
 class LiveGameViewModel: ObservableObject {
-    @Published var currentGame = Game(homeTeamId: "home", awayTeamId: "away")
+    @Published var currentGame = Game(homeTeamId: "home", awayTeamId: "away", homeTeamName: "Home", awayTeamName: "Away")
     @Published var gameTimer: Timer?
-    
-    private var statHistory: [StatAction] = []
+    @Published var statHistory: [StatAction] = []
     
     struct StatAction {
         let playerId: UUID
         let statType: StatType
         let value: Int
         let timestamp: Date
+        let quarter: Int
+    }
+    
+    func setupGame(homeTeam: String, awayTeam: String) {
+        currentGame = Game(
+            homeTeamId: UUID().uuidString,
+            awayTeamId: UUID().uuidString,
+            homeTeamName: homeTeam,
+            awayTeamName: awayTeam
+        )
+        statHistory.removeAll()
     }
     
     func startPauseGame() {
@@ -39,11 +49,30 @@ class LiveGameViewModel: ObservableObject {
     }
     
     func nextQuarter() {
+        // Save current quarter score
+        let currentQuarterIndex = currentGame.quarter - 1
+        if currentQuarterIndex < 4 {
+            // Calculate quarter scores (simplified)
+            currentGame.quarterScores[currentQuarterIndex] = [
+                currentGame.homeScore,
+                currentGame.awayScore
+            ]
+        }
+        
         if currentGame.quarter < 4 {
             currentGame.quarter += 1
             currentGame.timeRemaining = 12 * 60
+            stopTimer()
+            currentGame.isLive = false
         } else {
             endGame()
+        }
+    }
+    
+    func timeout() {
+        if currentGame.isLive {
+            stopTimer()
+            currentGame.isLive = false
         }
     }
     
@@ -51,19 +80,39 @@ class LiveGameViewModel: ObservableObject {
         stopTimer()
         currentGame.isLive = false
         currentGame.isCompleted = true
+        
+        // Calculate final stats and save game
+        calculateFinalStats()
+    }
+    
+    func resetGame() {
+        stopTimer()
+        currentGame = Game(
+            homeTeamId: currentGame.homeTeamId,
+            awayTeamId: currentGame.awayTeamId,
+            homeTeamName: currentGame.homeTeamName,
+            awayTeamName: currentGame.awayTeamName
+        )
+        statHistory.removeAll()
     }
     
     func updateStat(_ playerId: UUID, _ statType: StatType, _ value: Int) {
         // Record the action for undo functionality
-        let action = StatAction(playerId: playerId, statType: statType, value: value, timestamp: Date())
+        let action = StatAction(
+            playerId: playerId,
+            statType: statType,
+            value: value,
+            timestamp: Date(),
+            quarter: currentGame.quarter
+        )
         statHistory.append(action)
         
         // Find or create player stats
         if let index = currentGame.playerStats.firstIndex(where: { $0.playerId == playerId }) {
-            updatePlayerStat(&currentGame.playerStats[index], statType, value)
+            updatePlayer Stats(&currentGame.playerStats[index], statType, value)
         } else {
             var newStats = GameStats(playerId: playerId, gameId: currentGame.id)
-            updatePlayerStat(&newStats, statType, value)
+            updatePlayerStats(&newStats, statType, value)
             currentGame.playerStats.append(newStats)
         }
         
@@ -75,7 +124,7 @@ class LiveGameViewModel: ObservableObject {
         guard let lastAction = statHistory.popLast() else { return }
         
         if let index = currentGame.playerStats.firstIndex(where: { $0.playerId == lastAction.playerId }) {
-            updatePlayerStat(&currentGame.playerStats[index], lastAction.statType, -lastAction.value)
+            updatePlayerStats(&currentGame.playerStats[index], lastAction.statType, -lastAction.value)
         }
         
         updateGameScore(lastAction.statType, -lastAction.value)
@@ -98,7 +147,7 @@ class LiveGameViewModel: ObservableObject {
         gameTimer = nil
     }
     
-    private func updatePlayerStat(_ stats: inout GameStats, _ statType: StatType, _ value: Int) {
+    private func updatePlayerStats(_ stats: inout GameStats, _ statType: StatType, _ value: Int) {
         switch statType {
         case .fieldGoalMade:
             stats.fieldGoalsMade += value
@@ -143,6 +192,13 @@ class LiveGameViewModel: ObservableObject {
             currentGame.homeScore += 1 * value
         default:
             break
+        }
+    }
+    
+    private func calculateFinalStats() {
+        // Calculate advanced stats for all players
+        for index in currentGame.playerStats.indices {
+            // Additional calculations can be added here
         }
     }
 }

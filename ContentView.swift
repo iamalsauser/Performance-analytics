@@ -1,42 +1,40 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authViewModel = AuthViewModel()
+    @StateObject private var authService = AuthService()
     
     var body: some View {
         Group {
-            if authViewModel.isAuthenticated {
-                if authViewModel.showOnboarding {
+            if authService.isAuthenticated {
+                if authService.showOnboarding {
                     OnboardingView()
-                        .environmentObject(authViewModel)
+                        .environmentObject(authService)
                 } else {
                     MainTabView()
-                        .environmentObject(authViewModel)
+                        .environmentObject(authService)
                 }
             } else {
                 LoginView()
-                    .environmentObject(authViewModel)
+                    .environmentObject(authService)
             }
         }
     }
 }
 
 struct MainTabView: View {
-    @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var authService: AuthService
     
     var body: some View {
         TabView {
             // Dashboard tab - role-specific content
             Group {
-                switch authViewModel.currentUser?.role {
+                switch authService.currentUser?.role {
                 case .player:
                     PlayerDashboardView()
                 case .coach:
                     CoachDashboardView()
                 case .manager:
                     ManagerDashboardView()
-                case .admin:
-                    AdminDashboardView()
                 case .none:
                     PlayerDashboardView() // Default fallback
                 }
@@ -47,7 +45,7 @@ struct MainTabView: View {
             }
             
             // Live Game tab (for managers and coaches)
-            if authViewModel.currentUser?.role == .manager || authViewModel.currentUser?.role == .coach {
+            if authService.currentUser?.role == .manager || authService.currentUser?.role == .coach {
                 LiveGameView()
                     .tabItem {
                         Image(systemName: "play.circle.fill")
@@ -56,7 +54,7 @@ struct MainTabView: View {
             }
             
             // Players tab
-            PlayersView()
+            PlayersListView()
                 .tabItem {
                     Image(systemName: "person.3.fill")
                     Text("Players")
@@ -66,7 +64,7 @@ struct MainTabView: View {
             StatsView()
                 .tabItem {
                     Image(systemName: "chart.bar.fill")
-                    Text("Stats")
+                    Text("Analytics")
                 }
             
             // Profile tab
@@ -76,11 +74,11 @@ struct MainTabView: View {
                     Text("Profile")
                 }
         }
-        .accentColor(.orange)
+        .tint(.orange)
     }
 }
 
-// Placeholder views for other dashboards
+// Placeholder views for other dashboards and tabs
 struct CoachDashboardView: View {
     var body: some View {
         NavigationStack {
@@ -96,8 +94,8 @@ struct CoachDashboardView: View {
                     // Player Comparison
                     PlayerComparisonCard()
                     
-                    // Fatigue Insights
-                    FatigueInsightsCard()
+                    // Recent Games
+                    RecentGamesOverviewCard()
                 }
                 .padding()
             }
@@ -118,11 +116,11 @@ struct ManagerDashboardView: View {
                     // Quick Actions
                     QuickActionsCard()
                     
-                    // Roster Management
-                    RosterManagementCard()
+                    // Team Management
+                    TeamManagementCard()
                     
-                    // Recent Uploads
-                    RecentUploadsCard()
+                    // Recent Activity
+                    RecentActivityCard()
                 }
                 .padding()
             }
@@ -131,27 +129,105 @@ struct ManagerDashboardView: View {
     }
 }
 
-struct AdminDashboardView: View {
+struct PlayersListView: View {
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    Text("Admin Dashboard")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    // System Overview
-                    SystemOverviewCard()
-                    
-                    // User Management
-                    UserManagementCard()
-                    
-                    // League Statistics
-                    LeagueStatsCard()
+            Text("Players List View")
+                .navigationTitle("Players")
+        }
+    }
+}
+
+struct StatsView: View {
+    var body: some View {
+        NavigationStack {
+            Text("Analytics View")
+                .navigationTitle("Analytics")
+        }
+    }
+}
+
+struct ProfileView: View {
+    @EnvironmentObject var authService: AuthService
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                if let user = authService.currentUser {
+                    VStack(spacing: 20) {
+                        // Profile Image
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 100))
+                            .foregroundColor(.gray)
+                        
+                        VStack(spacing: 8) {
+                            Text(user.name)
+                                .font(.title)
+                                .fontWeight(.bold)
+                            
+                            Text(user.role.rawValue)
+                                .font(.subheadline)
+                                .foregroundColor(user.role.color)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(user.role.color.opacity(0.1))
+                                .cornerRadius(20)
+                        }
+                        
+                        Text(user.email)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                
+                VStack(spacing: 16) {
+                    ProfileMenuButton(title: "Edit Profile", icon: "person.crop.circle", action: {})
+                    ProfileMenuButton(title: "Settings", icon: "gear", action: {})
+                    ProfileMenuButton(title: "Help & Support", icon: "questionmark.circle", action: {})
+                    ProfileMenuButton(title: "About", icon: "info.circle", action: {})
+                }
+                
+                Button("Sign Out") {
+                    authService.signOut()
+                }
+                .foregroundColor(.red)
+                .font(.headline)
                 .padding()
+                
+                Spacer()
             }
-            .navigationTitle("Admin Dashboard")
+            .padding()
+            .navigationTitle("Profile")
+        }
+    }
+}
+
+struct ProfileMenuButton: View {
+    let title: String
+    let icon: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(.orange)
+                    .frame(width: 24)
+                
+                Text(title)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray6))
+            )
         }
     }
 }
@@ -162,6 +238,7 @@ struct TeamPerformanceCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Team Performance")
                 .font(.headline)
+                .fontWeight(.semibold)
             
             HStack {
                 VStack(alignment: .leading) {
@@ -188,8 +265,10 @@ struct TeamPerformanceCard: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
     }
 }
 
@@ -198,6 +277,7 @@ struct PlayerComparisonCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Top Performers")
                 .font(.headline)
+                .fontWeight(.semibold)
             
             ForEach(0..<3) { index in
                 HStack {
@@ -221,28 +301,58 @@ struct PlayerComparisonCard: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
     }
 }
 
-struct FatigueInsightsCard: View {
+struct RecentGamesOverviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Fatigue Insights")
+            Text("Recent Games")
                 .font(.headline)
+                .fontWeight(.semibold)
             
-            Text("3 players showing signs of fatigue")
+            VStack(spacing: 8) {
+                GameResultRow(opponent: "Lakers", result: "W", score: "112-108")
+                GameResultRow(opponent: "Warriors", result: "L", score: "98-105")
+                GameResultRow(opponent: "Celtics", result: "W", score: "120-115")
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
+struct GameResultRow: View {
+    let opponent: String
+    let result: String
+    let score: String
+    
+    var body: some View {
+        HStack {
+            Text("vs \(opponent)")
                 .font(.subheadline)
-                .foregroundColor(.orange)
             
-            Text("Consider rotation adjustments")
+            Spacer()
+            
+            Text(result)
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .frame(width: 20, height: 20)
+                .background(result == "W" ? Color.green : Color.red)
+                .clipShape(Circle())
+            
+            Text(score)
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
     }
 }
 
@@ -251,17 +361,20 @@ struct QuickActionsCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Quick Actions")
                 .font(.headline)
+                .fontWeight(.semibold)
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 12) {
                 ActionButton(title: "Start Live Game", icon: "play.circle.fill", color: .green)
                 ActionButton(title: "Add Player", icon: "person.badge.plus", color: .blue)
-                ActionButton(title: "Upload Stats", icon: "square.and.arrow.up", color: .orange)
+                ActionButton(title: "Enter Stats", icon: "square.and.pencil", color: .orange)
                 ActionButton(title: "Generate Report", icon: "doc.text", color: .purple)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
     }
 }
 
@@ -290,11 +403,12 @@ struct ActionButton: View {
     }
 }
 
-struct RosterManagementCard: View {
+struct TeamManagementCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Roster Management")
+            Text("Team Management")
                 .font(.headline)
+                .fontWeight(.semibold)
             
             Text("15 Active Players")
                 .font(.subheadline)
@@ -306,160 +420,38 @@ struct RosterManagementCard: View {
             .foregroundColor(.orange)
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
     }
 }
 
-struct RecentUploadsCard: View {
+struct RecentActivityCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Uploads")
+            Text("Recent Activity")
                 .font(.headline)
+                .fontWeight(.semibold)
             
-            Text("Game vs Lakers - Stats uploaded")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Text("Training video - Processed")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-    }
-}
-
-struct SystemOverviewCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("System Overview")
-                .font(.headline)
-            
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Total Users")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("1,247")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Game vs Lakers - Stats entered")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 
-                Spacer()
+                Text("Player John Doe - Profile updated")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 
-                VStack(alignment: .trailing) {
-                    Text("Active Teams")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("89")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                }
+                Text("Training session - Video uploaded")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-    }
-}
-
-struct UserManagementCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("User Management")
-                .font(.headline)
-            
-            Text("5 pending approvals")
-                .font(.subheadline)
-                .foregroundColor(.orange)
-            
-            Button("Review Users") {
-                // Navigate to user management
-            }
-            .foregroundColor(.orange)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-    }
-}
-
-struct LeagueStatsCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("League Statistics")
-                .font(.headline)
-            
-            Text("Season: 2023-24")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Text("Games Played: 1,456")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-    }
-}
-
-// Placeholder views for other tabs
-struct PlayersView: View {
-    var body: some View {
-        NavigationStack {
-            Text("Players View")
-                .navigationTitle("Players")
-        }
-    }
-}
-
-struct StatsView: View {
-    var body: some View {
-        NavigationStack {
-            Text("Stats View")
-                .navigationTitle("Statistics")
-        }
-    }
-}
-
-struct ProfileView: View {
-    @EnvironmentObject var authViewModel: AuthViewModel
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                if let user = authViewModel.currentUser {
-                    VStack(spacing: 16) {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 100))
-                            .foregroundColor(.gray)
-                        
-                        Text(user.name)
-                            .font(.title)
-                            .fontWeight(.bold)
-                        
-                        Text(user.role.rawValue)
-                            .font(.subheadline)
-                            .foregroundColor(user.role.color)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(user.role.color.opacity(0.1))
-                            .cornerRadius(20)
-                    }
-                }
-                
-                Button("Sign Out") {
-                    authViewModel.signOut()
-                }
-                .foregroundColor(.red)
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Profile")
-        }
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemGray6))
+        )
     }
 }

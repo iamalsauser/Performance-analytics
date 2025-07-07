@@ -4,36 +4,57 @@ struct LiveGameView: View {
     @StateObject private var gameViewModel = LiveGameViewModel()
     @State private var selectedPlayer: Player?
     @State private var showPlayerPicker = false
+    @State private var showGameSetup = true
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Game Header
-                GameHeaderView(game: gameViewModel.currentGame)
-                
-                // Player Selection
-                PlayerSelectionView(
-                    selectedPlayer: $selectedPlayer,
-                    showPlayerPicker: $showPlayerPicker
-                )
-                
-                // Stat Input Grid
-                StatInputGridView(
-                    selectedPlayer: selectedPlayer,
-                    onStatUpdate: gameViewModel.updateStat
-                )
-                
-                // Game Controls
-                GameControlsView(gameViewModel: gameViewModel)
-            }
-            .navigationTitle("Live Game")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("End Game") {
-                        gameViewModel.endGame()
+            if showGameSetup {
+                GameSetupView(onGameStart: { homeTeam, awayTeam in
+                    gameViewModel.setupGame(homeTeam: homeTeam, awayTeam: awayTeam)
+                    showGameSetup = false
+                })
+            } else {
+                VStack(spacing: 0) {
+                    // Game Header
+                    GameHeaderView(game: gameViewModel.currentGame)
+                    
+                    // Player Selection
+                    PlayerSelectionView(
+                        selectedPlayer: $selectedPlayer,
+                        showPlayerPicker: $showPlayerPicker
+                    )
+                    
+                    // Stat Input Grid
+                    StatInputGridView(
+                        selectedPlayer: selectedPlayer,
+                        onStatUpdate: gameViewModel.updateStat
+                    )
+                    
+                    // Game Controls
+                    GameControlsView(gameViewModel: gameViewModel)
+                }
+                .navigationTitle("Live Game")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            Button("End Game", role: .destructive) {
+                                gameViewModel.endGame()
+                                showGameSetup = true
+                            }
+                            
+                            Button("Undo Last Action") {
+                                gameViewModel.undoLastAction()
+                            }
+                            .disabled(gameViewModel.statHistory.isEmpty)
+                            
+                            Button("Reset Game") {
+                                gameViewModel.resetGame()
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
                     }
-                    .foregroundColor(.red)
                 }
             }
         }
@@ -43,62 +64,167 @@ struct LiveGameView: View {
     }
 }
 
+struct GameSetupView: View {
+    @State private var homeTeamName = ""
+    @State private var awayTeamName = ""
+    let onGameStart: (String, String) -> Void
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            VStack(spacing: 16) {
+                Image(systemName: "basketball.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.orange)
+                
+                Text("Setup New Game")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                
+                Text("Enter team names to start tracking")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Home Team")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    TextField("Enter home team name", text: $homeTeamName)
+                        .textFieldStyle(CustomTextFieldStyle())
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Away Team")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    TextField("Enter away team name", text: $awayTeamName)
+                        .textFieldStyle(CustomTextFieldStyle())
+                }
+            }
+            
+            Button(action: {
+                onGameStart(homeTeamName, awayTeamName)
+            }) {
+                Text("Start Game")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        LinearGradient(
+                            colors: [.orange, .red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+            .disabled(homeTeamName.isEmpty || awayTeamName.isEmpty)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 32)
+        .navigationTitle("New Game")
+    }
+}
+
 struct GameHeaderView: View {
     let game: Game
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Score
+        VStack(spacing: 16) {
+            // Score Display
             HStack {
-                VStack {
-                    Text("HOME")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("\(game.homeScore)")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 4) {
-                    Text("Q\(game.quarter)")
+                VStack(spacing: 8) {
+                    Text(game.homeTeamName)
                         .font(.headline)
-                        .fontWeight(.bold)
+                        .fontWeight(.semibold)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
                     
-                    Text(timeString(from: game.timeRemaining))
-                        .font(.title2)
-                        .fontWeight(.medium)
+                    Text("\(game.homeScore)")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundColor(.orange)
                 }
+                .frame(maxWidth: .infinity)
+                
+                VStack(spacing: 8) {
+                    Text("Q\(game.quarter)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Text(timeString(from: game.timeRemaining))
+                        .font(.title)
+                        .fontWeight(.medium)
+                        .foregroundColor(game.isLive ? .red : .secondary)
+                        .monospacedDigit()
+                    
+                    if game.isLive {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .scaleEffect(1.0)
+                                .animation(.easeInOut(duration: 1.0).repeatForever(), value: game.isLive)
+                            
+                            Text("LIVE")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                
+                VStack(spacing: 8) {
+                    Text(game.awayTeamName)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    
+                    Text("\(game.awayScore)")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .foregroundColor(.blue)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            
+            // Quarter Scores
+            HStack {
+                Text("Quarter Scores:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 
                 Spacer()
                 
-                VStack {
-                    Text("AWAY")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("\(game.awayScore)")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                HStack(spacing: 8) {
+                    ForEach(0..<4) { quarter in
+                        VStack(spacing: 2) {
+                            Text("Q\(quarter + 1)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            
+                            Text("\(game.quarterScores[quarter][0])-\(game.quarterScores[quarter][1])")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                        }
+                        .opacity(quarter < game.quarter ? 1.0 : 0.5)
+                    }
                 }
-            }
-            .padding(.horizontal, 40)
-            
-            // Game Status
-            if game.isLive {
-                Text("LIVE")
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(Color.red)
-                    .cornerRadius(8)
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+        .padding(.horizontal)
     }
     
     private func timeString(from timeInterval: TimeInterval) -> String {
@@ -113,35 +239,54 @@ struct PlayerSelectionView: View {
     @Binding var showPlayerPicker: Bool
     
     var body: some View {
-        HStack {
-            Text("Selected Player:")
+        HStack(spacing: 16) {
+            Text("Player:")
                 .font(.headline)
+                .foregroundColor(.secondary)
             
             Button(action: {
                 showPlayerPicker = true
             }) {
-                HStack {
+                HStack(spacing: 8) {
                     if let player = selectedPlayer {
-                        Text("#\(player.jerseyNumber) \(player.name)")
-                            .fontWeight(.medium)
+                        HStack(spacing: 8) {
+                            Text("#\(player.jerseyNumber)")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .frame(width: 24, height: 24)
+                                .background(Color.orange)
+                                .clipShape(Circle())
+                            
+                            Text(player.name)
+                                .fontWeight(.medium)
+                        }
                     } else {
-                        Text("Select Player")
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.circle")
+                                .foregroundColor(.secondary)
+                            
+                            Text("Select Player")
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
                     Image(systemName: "chevron.down")
                         .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.systemGray5))
-                .cornerRadius(8)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(.systemGray5))
+                )
             }
             .foregroundColor(.primary)
             
             Spacer()
         }
-        .padding()
+        .padding(.horizontal)
     }
 }
 
@@ -149,127 +294,33 @@ struct StatInputGridView: View {
     let selectedPlayer: Player?
     let onStatUpdate: (UUID, StatType, Int) -> Void
     
+    private let statButtons: [(title: String, statType: StatType, color: Color)] = [
+        ("2PT Made", .fieldGoalMade, .green),
+        ("2PT Miss", .fieldGoalMissed, .red),
+        ("3PT Made", .threePointerMade, .blue),
+        ("3PT Miss", .threePointerMissed, .orange),
+        ("FT Made", .freeThrowMade, .mint),
+        ("FT Miss", .freeThrowMissed, .pink),
+        ("Rebound", .rebound, .purple),
+        ("Assist", .assist, .cyan),
+        ("Steal", .steal, .yellow),
+        ("Block", .block, .indigo),
+        ("Turnover", .turnover, .red),
+        ("Foul", .foul, .orange)
+    ]
+    
     var body: some View {
         ScrollView {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
-                // Shooting Stats
-                StatButtonView(
-                    title: "2PT Made",
-                    color: .green,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .fieldGoalMade, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "2PT Miss",
-                    color: .red,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .fieldGoalMissed, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "3PT Made",
-                    color: .blue,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .threePointerMade, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "3PT Miss",
-                    color: .orange,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .threePointerMissed, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "FT Made",
-                    color: .green,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .freeThrowMade, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "FT Miss",
-                    color: .red,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .freeThrowMissed, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "Rebound",
-                    color: .purple,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .rebound, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "Assist",
-                    color: .cyan,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .assist, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "Steal",
-                    color: .yellow,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .steal, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "Block",
-                    color: .indigo,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .block, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "Turnover",
-                    color: .red,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .turnover, 1)
-                    }
-                }
-                
-                StatButtonView(
-                    title: "Foul",
-                    color: .orange,
-                    isEnabled: selectedPlayer != nil
-                ) {
-                    if let player = selectedPlayer {
-                        onStatUpdate(player.id, .foul, 1)
+                ForEach(Array(statButtons.enumerated()), id: \.offset) { index, button in
+                    StatButtonView(
+                        title: button.title,
+                        color: button.color,
+                        isEnabled: selectedPlayer != nil
+                    ) {
+                        if let player = selectedPlayer {
+                            onStatUpdate(player.id, button.statType, 1)
+                        }
                     }
                 }
             }
@@ -284,18 +335,34 @@ struct StatButtonView: View {
     let isEnabled: Bool
     let action: () -> Void
     
+    @State private var isPressed = false
+    
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            action()
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
+        }) {
             Text(title)
                 .font(.headline)
-                .fontWeight(.medium)
+                .fontWeight(.semibold)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 60)
-                .background(isEnabled ? color : Color.gray)
-                .cornerRadius(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isEnabled ? color : Color.gray)
+                        .scaleEffect(isPressed ? 0.95 : 1.0)
+                )
         }
         .disabled(!isEnabled)
+        .scaleEffect(isPressed ? 0.95 : 1.0)
+        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = pressing
+            }
+        }, perform: {})
     }
 }
 
@@ -303,35 +370,76 @@ struct GameControlsView: View {
     @ObservedObject var gameViewModel: LiveGameViewModel
     
     var body: some View {
-        HStack(spacing: 20) {
-            Button(action: gameViewModel.startPauseGame) {
-                Image(systemName: gameViewModel.currentGame.isLive ? "pause.fill" : "play.fill")
-                    .font(.title2)
+        VStack(spacing: 16) {
+            // Primary Controls
+            HStack(spacing: 20) {
+                Button(action: gameViewModel.startPauseGame) {
+                    HStack(spacing: 8) {
+                        Image(systemName: gameViewModel.currentGame.isLive ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                        
+                        Text(gameViewModel.currentGame.isLive ? "Pause" : "Start")
+                            .fontWeight(.semibold)
+                    }
                     .foregroundColor(.white)
-                    .frame(width: 60, height: 60)
-                    .background(gameViewModel.currentGame.isLive ? Color.orange : Color.green)
-                    .clipShape(Circle())
-            }
-            
-            Button(action: gameViewModel.resetClock) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.title2)
-                    .foregroundColor(.white)
-                    .frame(width: 60, height: 60)
-                    .background(Color.blue)
-                    .clipShape(Circle())
-            }
-            
-            Button(action: gameViewModel.nextQuarter) {
-                Text("Next Q")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(width: 80, height: 60)
-                    .background(Color.purple)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        LinearGradient(
+                            colors: gameViewModel.currentGame.isLive ? [.orange, .red] : [.green, .mint],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .cornerRadius(12)
+                }
+                
+                Button(action: gameViewModel.resetClock) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.title2)
+                        
+                        Text("Reset")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+            }
+            
+            // Secondary Controls
+            HStack(spacing: 12) {
+                Button(action: gameViewModel.nextQuarter) {
+                    Text("Next Quarter")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Color.purple)
+                        .cornerRadius(8)
+                }
+                
+                Button(action: gameViewModel.timeout) {
+                    Text("Timeout")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 40)
+                        .background(Color.gray)
+                        .cornerRadius(8)
+                }
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemGray6))
+        )
+        .padding(.horizontal)
     }
 }
