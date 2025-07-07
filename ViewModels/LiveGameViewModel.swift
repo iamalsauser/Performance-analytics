@@ -109,7 +109,7 @@ class LiveGameViewModel: ObservableObject {
         
         // Find or create player stats
         if let index = currentGame.playerStats.firstIndex(where: { $0.playerId == playerId }) {
-            updatePlayer Stats(&currentGame.playerStats[index], statType, value)
+            updatePlayerStats(&currentGame.playerStats[index], statType, value)
         } else {
             var newStats = GameStats(playerId: playerId, gameId: currentGame.id)
             updatePlayerStats(&newStats, statType, value)

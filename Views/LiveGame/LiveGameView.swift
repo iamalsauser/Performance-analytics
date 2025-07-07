@@ -169,8 +169,6 @@ struct GameHeaderView: View {
                             Circle()
                                 .fill(Color.red)
                                 .frame(width: 8, height: 8)
-                                .scaleEffect(1.0)
-                                .animation(.easeInOut(duration: 1.0).repeatForever(), value: game.isLive)
                             
                             Text("LIVE")
                                 .font(.caption)

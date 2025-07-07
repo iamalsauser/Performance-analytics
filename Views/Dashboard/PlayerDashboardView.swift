@@ -307,20 +307,11 @@ struct PerformanceChartCard: View {
                     y: .value("FG%", data.fieldGoalPercentage)
                 )
                 .foregroundStyle(.blue)
-                .symbol(Square())
+                .symbol(Rectangle())
             }
             .frame(height: 200)
             .chartYAxis {
                 AxisMarks(position: .leading)
-            }
-            .chartLegend(position: .bottom) {
-                HStack {
-                    Label("Points", systemImage: "circle.fill")
-                        .foregroundColor(.orange)
-                    Label("FG%", systemImage: "square.fill")
-                        .foregroundColor(.blue)
-                }
-                .font(.caption)
             }
         }
         .padding()
